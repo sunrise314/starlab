@@ -1,0 +1,81 @@
+:root {
+  --bg-deep: #0a0e1a;
+  --bg-panel: rgba(18, 24, 38, 0.85);
+  --bg-panel-solid: #121826;
+  --text-primary: #e4e7f0;
+  --text-secondary: #8b94a8;
+  --accent-green: #67c23a;
+  --accent-cyan: #00d9ff;
+  --accent-orange: #ff9f43;
+  --accent-red: #ff4757;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+}
+
+/* ── 通用面板样式 ── */
+.panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--text-primary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.panel h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-green);
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.status-row .label {
+  color: var(--text-secondary);
+}
+
+.status-row .value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+/* ── 状态点 ── */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.status-dot.green  { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
+.status-dot.cyan   { background: var(--accent-cyan);  box-shadow: 0 0 6px var(--accent-cyan); }
+.status-dot.orange { background: var(--accent-orange);box-shadow: 0 0 6px var(--accent-orange); }
+.status-dot.gray   { background: #555; }

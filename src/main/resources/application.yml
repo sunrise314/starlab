@@ -1,0 +1,23 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: starlab
+
+# 星地智连仿真参数
+starlab:
+  # 仿真时钟倍率（1=实时，60=60倍速）
+  time-scale: 1
+  # 地球引力常数 (km^3/s^2)
+  earth-mu: 398600.4418
+  # 地球自转角速度 (rad/s)
+  earth-rotation-rate: 7.2921159e-5
+  # 地球半径 (km)
+  earth-radius: 6371.0
+  # 最小可见仰角 (度)
+  min-elevation: 10.0
+  # 载波频率 - L频段 (Hz)
+  carrier-frequency: 2.0e9
+  # 光速 (km/s)
+  speed-of-light: 299792.458

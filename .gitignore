@@ -1,0 +1,30 @@
+# Build outputs
+target/
+dist/
+build/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+pnpm-debug.log*
+
+# Gradle
+.gradle/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temp/debug
+*.log
+_tle_test.json
+TleDebug.*
+Sgp4Debug.*
