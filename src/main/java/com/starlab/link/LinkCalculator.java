@@ -14,6 +14,9 @@ import org.springframework.stereotype.Component;
  *   - 大气气体吸收损耗：与仰角反比（仰角越低，大气路径越长）
  *   - 信噪比 SNR：链路预算 (Tx + Gains − Losses − Noise)
  *   - Shannon 吞吐量：C = B·log2(1 + SNR_linear)
+ *   - 大气折射仰角修正（ITU-R P.834 简化）：低仰角时电波被大气"抬"起来，
+ *     视在仰角 = 几何仰角 + Δe（10° 时 +0.10°，5° 时 +0.21°）
+ *     → LinkResult.elevationDeg() 返回视在仰角，可见性判定随之使用视在仰角
  * <p>
  * ENU 变换: 将 ECEF 下卫星-地面站差矢量分解到地面站的
  * East-North-Up 坐标系，得到仰角和方位角
@@ -74,6 +77,11 @@ public class LinkCalculator {
         // 4. 仰角 = arcsin(U / |Δr|)
         double elevation = Math.toDegrees(Math.asin(up / range));
 
+        // 4.5 大气折射修正 —— 视在仰角 = 几何仰角 + Δe(e)
+        //     电波在低仰角穿过大气层时被折射"抬高"，天线实际指向比几何位置高：
+        //     10° → +0.10°，5° → +0.21°，1° → ~+0.65°（经验限幅）
+        double apparentElevation = elevation + refractionCorrectionDeg(elevation);
+
         // 5. 方位角 = atan2(E, N), 正北 0°, 顺时针
         double azimuth = Math.toDegrees(Math.atan2(east, north));
         if (azimuth < 0) azimuth += 360;
@@ -89,15 +97,15 @@ public class LinkCalculator {
         double pathLoss = 20 * Math.log10(
                 4 * Math.PI * range * SimConstants.DEFAULT_CARRIER_FREQ / SimConstants.SPEED_OF_LIGHT);
 
-        // 8. 可见性判定
-        boolean visible = elevation >= Math.toDegrees(SimConstants.MIN_ELEVATION_RAD);
+        // 8. 可见性判定（用视在仰角——门限是天线看的方向，不是几何方向）
+        boolean visible = apparentElevation >= Math.toDegrees(SimConstants.MIN_ELEVATION_RAD);
 
         // ── v2 物理层增强 ──
         // 9. 雨衰 (ITU-R P.618 简化)
-        double rainLossDb = calculateRainLoss(elevation);
+        double rainLossDb = calculateRainLoss(apparentElevation);
 
         // 10. 大气气体吸收损耗
-        double atmosphericLossDb = calculateAtmosphericLoss(elevation);
+        double atmosphericLossDb = calculateAtmosphericLoss(apparentElevation);
 
         // 11. SNR + Shannon 吞吐量
         double totalLossDb = pathLoss + rainLossDb + atmosphericLossDb;
@@ -107,7 +115,7 @@ public class LinkCalculator {
         return new LinkResult(
                 sat.satelliteId(), sat.name(),
                 station.id(), station.name(),
-                range, elevation, azimuth,
+                range, apparentElevation, azimuth,
                 doppler, pathLoss, visible,
                 rainLossDb, atmosphericLossDb, snrDb, throughputMbps,
                 // v3 干扰默认值（未做干扰分析时，按"无干扰"填）
@@ -139,6 +147,26 @@ public class LinkCalculator {
         return THERMAL_NOISE_DENSITY_DBM_HZ
                 + 10 * Math.log10(BANDWIDTH_HZ)
                 + NOISE_FIGURE_DB;
+    }
+
+    /**
+     * 大气折射仰角修正（ITU-R P.834 简化）
+     * <p>
+     * Δe(rad) ≈ Ns·10⁻⁶·cot(e)，Ns = 315（标准大气地面折射率）
+     * 数值：10° → +0.10°，5° → +0.21°，2° → +0.52°；
+     * cot 线性近似在 1° 以下发散（经验值约 +0.65°），故限幅。
+     * <p>
+     * 工程含义：10° 门限下折射白送的 ~0.1°，约等于过境尾段多出 20~30 秒可见时间。
+     * 是否建模取决于你要"教科书几何"还是"天线实际指向"——本仿真选后者。
+     */
+    private double refractionCorrectionDeg(double geometricElevDeg) {
+        // 地平线以下模型失效不修正；>= 20° 修正量 < 0.05°，工程上忽略
+        if (geometricElevDeg <= 0 || geometricElevDeg >= 20.0) {
+            return 0.0;
+        }
+        double e = Math.max(geometricElevDeg, 1.0);
+        double deltaDeg = Math.toDegrees(315e-6 / Math.tan(Math.toRadians(e)));
+        return Math.round(Math.min(deltaDeg, 0.65) * 1000.0) / 1000.0;
     }
 
     /**
