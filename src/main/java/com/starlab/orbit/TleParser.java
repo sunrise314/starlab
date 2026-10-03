@@ -62,11 +62,12 @@ public final class TleParser {
      * 解析 TLE 指数格式小数
      * 例: " 33590-3" → 0.33590 × 10⁻³
      *     ".12345-2" → 0.12345 × 10⁻²
+     *     "-43656-4" → -0.43656 × 10⁻⁴（负 BSTAR：Starlink 机动卫星常见）
      */
     static double parseExponential(String s) {
         s = s.trim();
         if (s.isEmpty()) return 0.0;
-        // 拆分尾数和指数
+        // 取最后一个 +/- 作为指数符号——尾数可能带前导负号（负 BSTAR）
         int signPos = Math.max(s.lastIndexOf('+'), s.lastIndexOf('-'));
         if (signPos <= 0) {
             return Double.parseDouble("0." + s.replace(".", "").trim());
@@ -75,7 +76,15 @@ public final class TleParser {
         String expStr = s.substring(signPos);
         // 构造标准科学计数法: 补 "0" 前缀
         if (!mantissaStr.contains(".")) {
-            mantissaStr = "0." + mantissaStr;
+            boolean negative = false;
+            if (mantissaStr.startsWith("-")) {
+                negative = true;
+                mantissaStr = mantissaStr.substring(1);
+            } else if (mantissaStr.startsWith("+")) {
+                mantissaStr = mantissaStr.substring(1);
+            }
+            double value = Double.parseDouble("0." + mantissaStr + "e" + expStr);
+            return negative ? -value : value;
         }
         return Double.parseDouble(mantissaStr + "e" + expStr);
     }
