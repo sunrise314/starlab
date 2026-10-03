@@ -6,17 +6,19 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 
 /**
- * SGP4-lite：J2 摄动 + BSTAR 阻力 近地传播器
+ * SGP4-lite：J2 摄动 + TLE 阻力项 近地传播器
  * <p>
  * 用于 TLE 数据导入后的快速传播。核心思路：
  * <ol>
- *   <li>从 TLE 经典根数出发，计算 J2 摄动的 secular 进动速率（ω_dot, Ω_dot, n_dot）</li>
- *   <li>BSTAR 提供一阶 secular 阻力项（n_dot_drag）</li>
+ *   <li>从 TLE 经典根数出发，计算 J2 摄动的长期（secular）进动速率（ω_dot, Ω_dot）</li>
+ *   <li>TLE 的 ndot 提供一阶阻力项（平近点角 ½ṅt²）</li>
  *   <li>时间推进经典根数，开普勒方程解瞬时位置</li>
  * </ol>
  * <p>
- * 精度：对 LEO 卫星（< 6000 km 高度），24 小时误差 < 1 km，满足仿真可视化需求。
- * 比纯二体模型精度提升一个数量级，比完整 SGP4 简化了长周期共振项（对 near-earth 可忽略）。
+ * 精度（tools/golden_sgp4.py 黄金数据 + Sgp4GoldenDataTest 断言，2026-10 ISS TLE 实测）：
+ * 24 小时最大位置误差 ~15 km（相对轨道半径 ~0.2%），满足仿真可视化需求；
+ * 比纯二体模型（同条件 >7000 km）好三个数量级。
+ * 与完整 SGP4 的差距来自刻意省略的短周期项与高阶带谐，属设计取舍而非缺陷。
  */
 @Component
 public class Sgp4Propagator {
@@ -25,7 +27,6 @@ public class Sgp4Propagator {
     private static final double J2 = 1.08262668e-3;
     private static final double XKMPER = 6378.137;           // km / ER
     private static final double XMNPDA = 1440.0;              // min/day
-    private static final double KE = Math.sqrt(SimConstants.MU / (XKMPER * XKMPER * XKMPER));
     private static final double MU = SimConstants.MU;
 
     /**
@@ -47,7 +48,6 @@ public class Sgp4Propagator {
         double omega0 = Math.toRadians(el.argumentOfPerigee());
         double Omega0 = Math.toRadians(el.raan());
         double M0 = Math.toRadians(el.meanAnomaly());
-        double bstar = el.bstar();
 
         // 半长轴 (km) —— n 单位 rad/min，Kepler 定律要 rad/s
         double a_km = Math.cbrt(MU / (n * n / 3600.0));
@@ -63,25 +63,21 @@ public class Sgp4Propagator {
         double Omega_dot = -1.5 * n * J2_over_p2 * cosI;
 
         // ω_dot (rad/min) —— 近地点幅角进动
-        double x3tm1 = 3.0 * cosI * cosI - 1.0;
         double omega_dot = 0.75 * n * J2_over_p2 * (5.0 * cosI * cosI - 1.0);
 
         // n_dot_J2 —— J2 对平均运动的长期效应（很小，可忽略）
         // n_dot_J2 = 0 处理
 
-        // ── 3. BSTAR 阻力 secular 速率 ──
-        // n_dot_drag (rad/min²): SGP4 一阶公式
-        // n_dot ≈ 1.5 * BSTAR * n² * p²  (BSTAR 单位: 1/ER)
-        double a_ER = a_km / XKMPER;
-        double p_ER = p_km / XKMPER;
-        double n_dot_drag = 1.5 * bstar * n * n * p_ER * p_ER;  // rad/min²
+        // ── 3. 阻力 secular 速率 ──
+        // 一阶阻力对平近点角的效应已由 TLE 的 ndot 字段直接给出（rev/day²），
+        // 换算 rad/min²：rev/day² × 2π / 1440²。BSTAR 只在完整 SGP4 的高阶重构里使用。
+        double n_dot = el.ndot() * 2.0 * Math.PI / (XMNPDA * XMNPDA);
 
         // ── 4. 时间推进（dtMin 分钟） ──
-        double M = M0 + n * dtMin + 0.5 * n_dot_drag * dtMin * dtMin;
+        double M = M0 + n * dtMin + 0.5 * n_dot * dtMin * dtMin;
         double Omega = Omega0 + Omega_dot * dtMin;
         double omega = omega0 + omega_dot * dtMin;
         double a = a_km;
-        double epsilon = 1e-10;  // e 微小变化忽略（一阶近似）
 
         // 归一化角度
         M = normalizeAngle(M);
