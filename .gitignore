@@ -28,3 +28,6 @@ Thumbs.db
 _tle_test.json
 TleDebug.*
 Sgp4Debug.*
+
+# Twin loop runtime data (snapshots/reports)
+data/
